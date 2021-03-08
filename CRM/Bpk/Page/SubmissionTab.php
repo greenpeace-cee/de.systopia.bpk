@@ -35,7 +35,7 @@ class CRM_Bpk_Page_SubmissionTab extends CRM_Core_Page {
     $query = CRM_Core_DAO::executeQuery("
       SELECT
         YEAR(civicrm_contribution.receive_date) AS year,
-        SUM(civicrm_contribution.total_amount)  AS amount
+        SUM(civicrm_contribution.total_amount - civicrm_contribution.non_deductible_amount)  AS amount
       FROM civicrm_contribution
       WHERE {$where_clause}
       GROUP BY YEAR(civicrm_contribution.receive_date)
@@ -161,7 +161,7 @@ class CRM_Bpk_Page_SubmissionTab extends CRM_Core_Page {
       $query_sql = "
         SELECT bpk_exclusion_from, bpk_exclusion_to
         FROM civicrm_activity_contact ac
-        LEFT JOIN civicrm_activity activity ON ac.activity_id = activity.id 
+        LEFT JOIN civicrm_activity activity ON ac.activity_id = activity.id
         {$FROM_TO_JOIN}
         WHERE ac.contact_id = {$contact_id}
           AND ac.record_type_id = 3

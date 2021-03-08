@@ -349,7 +349,7 @@ class CRM_Bpk_Submission {
     CRM_Core_DAO::executeQuery("DROP TABLE IF EXISTS `{$excluded_contacts}`;");
     $exclusion_table_query = "
       CREATE TABLE `{$excluded_contacts}` AS
-        SELECT contact.id AS contact_id 
+        SELECT contact.id AS contact_id
         FROM civicrm_contact contact
         LEFT JOIN civicrm_group_contact       ON civicrm_group_contact.contact_id = contact.id
                                                AND civicrm_group_contact.group_id IN ({$excluded_group_ids})
@@ -361,7 +361,7 @@ class CRM_Bpk_Submission {
                                                AND exclusion.status_id IN ({$activity_status_ids})
         LEFT JOIN {$excl} matching_exclusion  ON matching_exclusion.entity_id = exclusion.id
                                                AND {$year} >= matching_exclusion.bpk_exclusion_from
-                                               AND {$year} <= matching_exclusion.bpk_exclusion_to 
+                                               AND {$year} <= matching_exclusion.bpk_exclusion_to
         WHERE matching_exclusion.id IS NOT NULL
            OR civicrm_group_contact.id IS NOT NULL
         GROUP BY contact.id;";
@@ -390,8 +390,8 @@ class CRM_Bpk_Submission {
     $eligible_donation_query = "
       CREATE TABLE `{$eligible_donations}` AS
         SELECT
-          civicrm_contribution.contact_id AS contact_id,
-          SUM(total_amount)               AS amount
+          civicrm_contribution.contact_id           AS contact_id,
+          SUM(total_amount - non_deductible_amount) AS amount
         FROM civicrm_contribution
         LEFT JOIN civicrm_contact               ON civicrm_contact.id = civicrm_contribution.contact_id
         LEFT JOIN {$excluded_contacts} excluded ON excluded.contact_id = civicrm_contact.id
