@@ -180,16 +180,22 @@ function bpk_civicrm_alterSettingsFolders(&$metaDataFolders = NULL) {
 }
 
 /**
- * Implements hook_civicrm_tabs()
+ * Implements bpk_civicrm_tabset()
  *
  * Will inject the BMF Submissions tab
  */
-function bpk_civicrm_tabs(&$tabs, $contactID) {
-  $tabs[] = array( 'id'     => 'bmfsa',
-                   'url'    => CRM_Utils_System::url('civicrm/bmf/submissions', "reset=1&snippet=1&force=1&cid={$contactID}"),
-                   'title'  => E::ts('BMF Submissions'),
-                   'count'  => CRM_Bpk_Submission::getSubmissionCount($contactID),
-                   'weight' => 300);
+function bpk_civicrm_tabset($tabsetName, &$tabs, $context) {
+  if ($tabsetName == 'civicrm/contact/view' && !empty($context['contact_id'])) {
+    // ADD BMF Submissions tab as a new tab
+    $params = [];
+    $params['contact_id'] = $context['contact_id'];
+
+    $tabs[] = array( 'id'     => 'bmfsa',
+      'url'    => CRM_Utils_System::url('civicrm/bmf/submissions', "reset=1&snippet=1&force=1&cid={$params['contact_id']}"),
+      'title'  => E::ts('BMF Submissions'),
+      'count'  => CRM_Bpk_Submission::getSubmissionCount($params['contact_id']),
+      'weight' => 300);
+  }
 }
 
 /**
