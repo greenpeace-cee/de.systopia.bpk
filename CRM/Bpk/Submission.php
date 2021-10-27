@@ -376,7 +376,8 @@ class CRM_Bpk_Submission {
 
     // compile where clause
     $where_clauses = $config->getDeductibleContributionWhereClauses();
-    $where_clauses[] = "(YEAR(civicrm_contribution.receive_date) = {$year})"; // select year
+    $recognition_date = "IF(civicrm_contribution.revenue_recognition_date IS NOT NULL, civicrm_contribution.revenue_recognition_date, civicrm_contribution.receive_date)";
+    $where_clauses[] = "(YEAR($recognition_date) = {$year})";                 // select year
     $where_clauses[] = "(LENGTH(bpk.vbpk) = 172)";                            // only contacts with valid vbpk (172 characters)
     $where_clauses[] = "(bpk.status IN (3,2))";                               // status 'Resolved' or 'manual'
     $where_clauses[] = "(excluded.contact_id IS NULL)";                       // there is active exclusion for this contact
@@ -494,7 +495,8 @@ class CRM_Bpk_Submission {
     $where_clauses[] = "(bpk_extern IS NOT NULL)";
     $where_clauses[] = "(bpk_extern <> '')";
     $where_clauses[] = "(civicrm_contact.is_deleted = 0)";
-    $where_clauses[] = "(YEAR(civicrm_contribution.receive_date) >= 2017)";
+    $recognition_date = "IF(civicrm_contribution.revenue_recognition_date IS NOT NULL, civicrm_contribution.revenue_recognition_date, civicrm_contribution.receive_date)";
+    $where_clauses[] = "(YEAR($recognition_date) >= 2017)";
     $where_clause = implode(' AND ', $where_clauses);
 
     // create the helper view
