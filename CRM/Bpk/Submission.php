@@ -238,7 +238,7 @@ class CRM_Bpk_Submission {
         // write XML header
         $writer = new XMLWriter();
         $writer->openURI($submission->getTmpFile());
-        $writer->startDocument();
+        $writer->startDocument('1.0', 'utf-8');
         $writer->startElement("SonderausgabenUebermittlung");
         $writer->writeAttribute('xmlns', 'https://finanzonline.bmf.gv.at/fon/ws/uebermittlungSonderausgaben');
 
