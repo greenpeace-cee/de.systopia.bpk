@@ -47,15 +47,16 @@ class CRM_Bpk_SoapLookup extends CRM_Bpk_Lookup {
     $this->location   = $soapHeaderParameters['soap_server_url'];
     $this->ns         = "http://egov.gv.at/pvp1.xsd";
     $this->wsdl       = dirname(__DIR__) . DIRECTORY_SEPARATOR . "../resources/soap/SZR.WSDL";
-    $this->local_cert = dirname(__DIR__) . DIRECTORY_SEPARATOR . "../resources/certs/certificate.pem";
-    $this->pw_file    = dirname(__DIR__) . DIRECTORY_SEPARATOR . "../resources/certs/pw.txt";
+    $persistPath = Civi::paths()->getPath('[civicrm.files]/persist/bpk');
+    $this->local_cert = is_readable($persistPath . '/certificate.pem') ? $persistPath . '/certificate.pem' : dirname(__DIR__) . DIRECTORY_SEPARATOR . "../resources/certs/certificate.pem";
+    $this->pw_file    = is_readable($persistPath . '/pw.txt') ? $persistPath . '/pw.txt' : dirname(__DIR__) . DIRECTORY_SEPARATOR . "../resources/certs/pw.txt";
 
     // make sure the certs are there (otherwise failes w/o proper warning)
     if (!is_readable($this->local_cert)) {
-      throw new Exception("Cannot read certificate file at 'resources/certs/certificate.pem'.", 1);
+      throw new Exception("Cannot read certificate file at '{$this->local_cert}'.", 1);
     }
     if (!is_readable($this->pw_file)) {
-      throw new Exception("Cannot read password file at 'resources/certs/pw.txt'.", 1);
+      throw new Exception("Cannot read password file at '$this->pw_file'.", 1);
     }
 
     $file_content= explode("\n", file_get_contents($this->pw_file));
