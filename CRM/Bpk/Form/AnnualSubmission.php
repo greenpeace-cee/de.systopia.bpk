@@ -26,12 +26,18 @@ class CRM_Bpk_Form_AnnualSubmission extends CRM_Core_Form {
   public function buildQuickForm() {
     CRM_Utils_System::setTitle(E::ts('Generate Annual Tax Submission'));
     $config = CRM_Bpk_Config::singleton();
+    $years_options = $config->getEligibleYearsForSubmission();
+
+    foreach ($years_options as $key => $year) {
+      if ((int) date('Y') - $year < 6) continue;
+      $years_options[$key] = "$year - " . E::ts('Submission period expired');
+    }
 
     // YEAR selector
     $this->addElement('select',
                       'year',
                       E::ts('Year'),
-                      $config->getEligibleYearsForSubmission(),
+                      $years_options,
                       array());
 
     $this->addButtons(array(
