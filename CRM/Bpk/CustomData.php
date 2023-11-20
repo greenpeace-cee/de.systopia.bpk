@@ -140,7 +140,15 @@ class CRM_Bpk_CustomData {
         $extends_list = array();
         foreach ($data['extends_entity_column_value'] as $activity_type) {
           if (!is_numeric($activity_type)) {
-            $activity_type = CRM_Core_OptionGroup::getValue('activity_type', $activity_type, 'name');
+            try {
+              $activity_type = civicrm_api3('OptionValue', 'getvalue', [
+                'return' => "value",
+                'option_group_id' => 'activity_type',
+                'name' => $activity_type,
+              ]);
+            } catch (CiviCRM_API3_Exception $e) {
+              $activity_type = null;
+            }
           }
           if ($activity_type) {
             $extends_list[] = $activity_type;
