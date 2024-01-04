@@ -88,6 +88,7 @@ class CRM_Bpk_DataLogic {
           $reset['bpk.vbpk']           = '';
           $reset['bpk.bpk_error_code'] = '';
           $reset['bpk.bpk_error_note'] = '';
+          $reset['bpk.bpk_lookup_date'] = NULL;
           CRM_Bpk_CustomData::resolveCustomFields($reset);
           self::$scheduled_reset = $reset;
         }
@@ -124,11 +125,13 @@ class CRM_Bpk_DataLogic {
           self::addCustomUpdate('vbpk',       '', $params, $update);
           self::addCustomUpdate('error_code', '', $params, $update);
           self::addCustomUpdate('error_note', '', $params, $update);
+          self::addCustomUpdate('lookup_date', '', $params, $update);
           break;
 
         case BPK_STATUS_MANUAL:
           self::addCustomUpdate('error_code', '', $params, $update);
           self::addCustomUpdate('error_note', '', $params, $update);
+          self::addCustomUpdate('lookup_date', '', $params, $update);
           break;
 
         case BPK_STATUS_RESOLVED:

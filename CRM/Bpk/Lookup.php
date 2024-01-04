@@ -68,6 +68,21 @@ abstract class CRM_Bpk_Lookup {
     }
     $limit_sql = "LIMIT {$limit}";
 
+    // BPKs with status=Unknown
+    $status_unknown_clause = "bpk_group.status IS NULL OR bpk_group.status = 1 OR bpk_group.status = ''";
+    // BPKs with either:
+    // - status<>Resolved but bpk_extern or vbpk is set
+    // - status=Resolved but either bpk_extern or vbpk is not set
+    $invalid_state_clause = "
+      (bpk_group.status <> 3 AND (bpk_extern <> '' OR bpk_group.vbpk <> ''))
+      OR
+      (bpk_group.status = 3 AND (bpk_extern = '' OR bpk_extern IS NULL OR bpk_group.vbpk = '' OR bpk_group.vbpk IS NULL))";
+    // BPKs with status=Error and retryable error code
+    $status_error_clause = "bpk_group.status = 5 AND (bpk_group.error_code = 'XXXX' OR bpk_group.error_code LIKE 'F5%')";
+    $retry_interval_days = Civi::settings()->get('bpk_lookup_retry_interval') ?? 90;
+    // BPK is not Resolved/Manual and lookup_date is older than bpk_lookup_retry_interval
+    $retry_clause = "bpk_group.status <> 3 AND bpk_group.status <> 2 AND (bpk_group.lookup_date IS NULL OR bpk_group.lookup_date <= NOW() - INTERVAL {$retry_interval_days} DAY)";
+
     // contact_id (for testing)
     if (empty($this->params['contact_id'])) {
       // generate WHERE clause
@@ -85,10 +100,12 @@ abstract class CRM_Bpk_Lookup {
       // ...not in the trash
       $where_clauses[] = "contact.is_deleted = 0";
 
-      // restrict to unset values:
-      $where_clauses[] = "bpk_group.status     IS NULL OR bpk_group.status = 1 OR bpk_group.status = ''";
-      $where_clauses[] = "bpk_group.bpk_extern IS NULL OR bpk_group.bpk_extern = ''";
-      $where_clauses[] = "bpk_group.vbpk       IS NULL OR bpk_group.vbpk = ''";
+      $where_clauses[] = "(
+           ({$status_unknown_clause})
+        OR ({$invalid_state_clause})
+        OR ({$status_error_clause})
+        OR ({$retry_clause})
+      )";
 
     } else {
       // this is a single contact call:
@@ -108,20 +125,30 @@ abstract class CRM_Bpk_Lookup {
       $JOIN_PRIMARY_ADDRESS = "";
     }
 
-    // TODO: check if contact_type = 'Individual' and bpk_group.{$field_name} IS NULL is correct
+    // select BPKs to lookup in the following order:
+    // 1. BPKs that have not yet been resolved (Status=Unknown)
+    // 2. BPK records in an invalid state (status does not make sense in combination with BPK value)
+    // 3. Status=Error
+    // 4. Status=No Match/Error/Ambiguous and lookup_date is older than bpk_lookup_retry_interval
     $sql = "SELECT
              contact.id         AS contact_id,
              contact.first_name AS first_name,
              contact.last_name  AS last_name,
              {$SELECT_POSTAL_CODE}
-             contact.birth_date AS birth_date
+             contact.birth_date AS birth_date,
+             CASE
+               WHEN ({$status_unknown_clause}) THEN 1
+               WHEN ({$invalid_state_clause}) THEN 2
+               WHEN ({$status_error_clause}) THEN 3
+               WHEN ({$retry_clause}) THEN 4
+             END AS priority
             FROM civicrm_contact contact
             LEFT JOIN {$table_name} AS bpk_group ON bpk_group.entity_id = contact.id
             {$JOIN_PRIMARY_ADDRESS}
             WHERE (({$where_sql}))
             GROUP BY contact.id
+            ORDER BY priority
             {$limit_sql}";
-
     return $sql;
   }
 
@@ -192,7 +219,7 @@ abstract class CRM_Bpk_Lookup {
       'bpk.bpk_status'     => $result['bpk_status'],
       'bpk.bpk_error_code' => $result['bpk_error_code'],
       'bpk.bpk_error_note' => $result['bpk_error_note'],
-      // 'bpk.lookup_date' => date('YmdHis')
+      'bpk.bpk_lookup_date' => date('YmdHis')
     );
     CRM_Bpk_CustomData::resolveCustomFields($update);
     civicrm_api3('Contact', 'create', $update);
