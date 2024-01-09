@@ -93,4 +93,16 @@ class CRM_Bpk_Upgrader extends CRM_Bpk_Upgrader_Base {
 
     return TRUE;
   }
+
+  /**
+   * add lookup_date
+   *
+   * @return true
+   * @throws \Exception
+   */
+  public function upgrade_0110() {
+    $customData = new CRM_Bpk_CustomData('de.systopia.bpk');
+    $customData->syncCustomGroup(__DIR__ . '/../../resources/bpk_custom_group.json');
+    return TRUE;
+  }
 }
