@@ -333,9 +333,21 @@ class CRM_Bpk_Submission {
     $year = (int) $year;
 
     // run duplicate check
-    $duplicate_count = self::findBPKDuplicates();
-    if ($duplicate_count > 0) {
-      CRM_Core_Session::setStatus(E::ts("There are still %1 duplicates (identical BPK) in the system. Please resolve these first.", array(1 => $duplicate_count)), E::ts('Duplicate BPKs!'), 'warn');
+    $bpk_duplicates = self::findBPKDuplicates();
+    if (count($bpk_duplicates) > 0) {
+      $duplicate_list = '<ul>';
+      foreach ($bpk_duplicates as $duplicate) {
+        $duplicate_list .= "<li>";
+        if (!empty($duplicate['url'])) {
+          $duplicate_list .= "<a href=\"{$duplicate['url']}\" target=\"_blank\">";
+        }
+        $duplicate_list .= "<code>{$duplicate['bpk_extern']}</code> ({$duplicate['contacts']})";
+        if (!empty($duplicate['url'])) {
+          $duplicate_list .= "</a>";
+        }
+        $duplicate_list .= "</li>";
+      }
+      CRM_Core_Session::setStatus(E::ts("There are still %1 duplicates (identical BPK) in the system. Please resolve these first: " . $duplicate_list, array(1 => count($bpk_duplicates))), E::ts('Duplicate BPKs!'), 'error');
       return;
     }
 
@@ -351,20 +363,20 @@ class CRM_Bpk_Submission {
       CREATE TABLE `{$excluded_contacts}` AS
         SELECT contact.id AS contact_id
         FROM civicrm_contact contact
-        LEFT JOIN civicrm_group_contact       ON civicrm_group_contact.contact_id = contact.id
+        INNER JOIN civicrm_group_contact       ON civicrm_group_contact.contact_id = contact.id
                                                AND civicrm_group_contact.group_id IN ({$excluded_group_ids})
                                                AND civicrm_group_contact.status = 'Added'
-        LEFT JOIN civicrm_activity_contact ac ON ac.contact_id = contact.id
+        UNION
+        SELECT DISTINCT contact.id AS contact_id
+        FROM civicrm_contact contact
+        INNER JOIN civicrm_activity_contact ac ON ac.contact_id = contact.id
                                                AND ac.record_type_id = 3
-        LEFT JOIN civicrm_activity exclusion  ON exclusion.id = ac.activity_id
+        INNER JOIN civicrm_activity exclusion  ON exclusion.id = ac.activity_id
                                                AND exclusion.activity_type_id = {$exclusion_activity_type_id}
                                                AND exclusion.status_id IN ({$activity_status_ids})
-        LEFT JOIN {$excl} matching_exclusion  ON matching_exclusion.entity_id = exclusion.id
+        INNER JOIN {$excl} matching_exclusion  ON matching_exclusion.entity_id = exclusion.id
                                                AND {$year} >= matching_exclusion.bpk_exclusion_from
-                                               AND {$year} <= matching_exclusion.bpk_exclusion_to
-        WHERE matching_exclusion.id IS NOT NULL
-           OR civicrm_group_contact.id IS NOT NULL
-        GROUP BY contact.id;";
+                                               AND {$year} <= matching_exclusion.bpk_exclusion_to";
     CRM_Core_DAO::executeQuery($exclusion_table_query);
     CRM_Core_DAO::executeQuery("ALTER TABLE `{$excluded_contacts}` ADD INDEX `contact_id` (`contact_id`);");
 
@@ -481,46 +493,38 @@ class CRM_Bpk_Submission {
 
 
   /**
-   * Get a count of the current number of active duplicates by BPK
+   * Get all BPK duplicates with relevant contributions
    *
-   * @return int number of duplicates found
+   * @return array dupliates
    */
   public static function findBPKDuplicates() {
-    // clear tmp view
-    CRM_Core_DAO::executeQuery("DROP VIEW IF EXISTS tmp_bpk_dupecheck;");
-
-    // compile helper view clauses
-    $config = CRM_Bpk_Config::singleton();
-    $where_clauses = array(); // don't dot this for now: $config->getDeductibleContributionWhereClauses();
-    $where_clauses[] = "(bpk_extern IS NOT NULL)";
-    $where_clauses[] = "(bpk_extern <> '')";
-    $where_clauses[] = "(civicrm_contact.is_deleted = 0)";
-    $recognition_date = "IF(civicrm_contribution.revenue_recognition_date IS NOT NULL, civicrm_contribution.revenue_recognition_date, civicrm_contribution.receive_date)";
-    $where_clauses[] = "(YEAR($recognition_date) >= 2017)";
-    $where_clause = implode(' AND ', $where_clauses);
-
-    // create the helper view
-    CRM_Core_DAO::executeQuery("
-      CREATE VIEW tmp_bpk_dupecheck AS
-      SELECT
-        COUNT(civicrm_contribution.id)      AS contributions_since2017,
-        COUNT(DISTINCT(civicrm_contact.id)) AS occurrences
+    $dupes = [];
+    $query = CRM_Core_DAO::executeQuery(
+      "SELECT
+        bpk_extern,
+        GROUP_CONCAT(DISTINCT civicrm_contact.id) AS contacts
       FROM civicrm_value_bpk
-      LEFT JOIN civicrm_contact      ON civicrm_contact.id              = civicrm_value_bpk.entity_id
-      LEFT JOIN civicrm_contribution ON civicrm_contribution.contact_id = civicrm_value_bpk.entity_id
-      WHERE {$where_clause}
-      GROUP BY bpk_extern;");
-
-    // evaluate
-    $duplicate_count = CRM_Core_DAO::singleValueQuery("
-      SELECT COUNT(*)
-      FROM tmp_bpk_dupecheck
-      WHERE occurrences > 1
-        AND contributions_since2017 > 0;");
-
-    // clear tmp view
-    CRM_Core_DAO::executeQuery("DROP VIEW IF EXISTS tmp_bpk_dupecheck;");
-
-    return $duplicate_count;
+      INNER JOIN civicrm_contact      ON civicrm_contact.id              = civicrm_value_bpk.entity_id
+      WHERE (bpk_extern IS NOT NULL)
+      AND (bpk_extern <> '')
+      AND (civicrm_contact.is_deleted = 0)
+      AND civicrm_value_bpk.entity_id IN (
+        SELECT contact_id
+        FROM civicrm_contribution
+        WHERE civicrm_contribution.contact_id = civicrm_value_bpk.entity_id
+        AND YEAR(IF(civicrm_contribution.revenue_recognition_date IS NOT NULL, civicrm_contribution.revenue_recognition_date, civicrm_contribution.receive_date)) >= 2017
+      )
+      GROUP BY bpk_extern
+      HAVING COUNT(DISTINCT(civicrm_contact.id)) > 1");
+    while ($query->fetch()) {
+      $contact_ids = explode(',', $query->contacts);
+      $dupe = ['bpk_extern' => $query->bpk_extern, 'contacts' => implode(', ', $contact_ids)];
+      // include merge link if it's a pair
+      if (count($contact_ids) == 2) {
+        $dupe['url'] = CRM_Utils_System::url('/civicrm/contact/merge?reset=1&cid=13&oid=592557', ['cid' => min($contact_ids), 'oid' => max($contact_ids)], TRUE);
+      }
+      $dupes[] = $dupe;
+    }
+    return $dupes;
   }
 }
