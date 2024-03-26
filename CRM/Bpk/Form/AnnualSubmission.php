@@ -29,8 +29,12 @@ class CRM_Bpk_Form_AnnualSubmission extends CRM_Core_Form {
     $years_options = $config->getEligibleYearsForSubmission();
 
     foreach ($years_options as $key => $year) {
-      if ((int) date('Y') - $year < 6) continue;
-      $years_options[$key] = "$year - " . E::ts('Submission period expired');
+      if ((int) date('Y') - $year >= 6) {
+        $years_options[$key] = "$year - " . E::ts('Submission period expired');
+      }
+      if ((int) date('Y') - $year == 0) {
+        $years_options[$key] = "$year - " . E::ts('Submission period not yet reached');
+      }
     }
 
     // YEAR selector
