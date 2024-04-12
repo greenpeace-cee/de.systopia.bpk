@@ -116,15 +116,6 @@ abstract class CRM_Bpk_Lookup {
     $table_name = $this->config->getTableName();
     $where_sql  = implode(') AND (', $where_clauses);
 
-    // check if we want to submit postal code
-    if (!empty($this->params['postal_code'])) {
-      $SELECT_POSTAL_CODE   = "address.postal_code AS postal_code,";
-      $JOIN_PRIMARY_ADDRESS = "LEFT JOIN civicrm_address address ON address.contact_id = contact.id AND address.is_primary = 1";
-    } else {
-      $SELECT_POSTAL_CODE   = "";
-      $JOIN_PRIMARY_ADDRESS = "";
-    }
-
     // select BPKs to lookup in the following order:
     // 1. BPKs that have not yet been resolved (Status=Unknown)
     // 2. BPK records in an invalid state (status does not make sense in combination with BPK value)
@@ -134,7 +125,6 @@ abstract class CRM_Bpk_Lookup {
              contact.id         AS contact_id,
              contact.first_name AS first_name,
              contact.last_name  AS last_name,
-             {$SELECT_POSTAL_CODE}
              contact.birth_date AS birth_date,
              CASE
                WHEN ({$status_unknown_clause}) THEN 1
@@ -144,7 +134,6 @@ abstract class CRM_Bpk_Lookup {
              END AS priority
             FROM civicrm_contact contact
             LEFT JOIN {$table_name} AS bpk_group ON bpk_group.entity_id = contact.id
-            {$JOIN_PRIMARY_ADDRESS}
             WHERE (({$where_sql}))
             GROUP BY contact.id
             ORDER BY priority
