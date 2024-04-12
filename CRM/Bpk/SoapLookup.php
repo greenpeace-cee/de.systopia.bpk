@@ -241,6 +241,28 @@ class CRM_Bpk_SoapLookup extends CRM_Bpk_Lookup {
         $result["bpk_status"]     = 4; // "no_match"
 
       } elseif ($result_status == "F231") {
+        if (empty($contact->postal_code)) {
+          // we performed a lookup without postal code and got ambiguous results
+          // check if we have a postal code we can retry with to make result unique
+          $address = \Civi\Api4\Address::get(FALSE)
+            ->addSelect('postal_code')
+            ->addWhere('contact_id', '=', $contact->contact_id)
+            ->addWhere('is_primary', '=', TRUE)
+            ->execute()
+            ->first();
+          if (!empty($address['postal_code'])) {
+            // we have a postal code, retry
+            $contact->postal_code = $address['postal_code'];
+            $postalCodeResult = $this->getBpkResult($contact);
+            if ($postalCodeResult['bpk_status'] == 3) {
+              // lookup with postal code produced unique match
+              return $postalCodeResult;
+            }
+            // if we did not get a (unique) match, we return ambiguous below
+            // as e.g. "No match" because of an incorrect postal code would be
+            // misleading if we did get multiple matches without a postal code
+          }
+        }
         // no unique lookup result
         $result['bpk_error_code'] = "F231"; // ambiguous
         $result['bpk_error_note'] = $fault->getMessage();
