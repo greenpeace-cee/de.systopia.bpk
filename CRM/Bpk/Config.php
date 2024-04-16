@@ -54,7 +54,7 @@ class CRM_Bpk_Config {
         'limit'                 => $this->limit,
         'key'                   => 'enter key here',
         'soap_header_namespace' => "http://egov.gv.at/pvp1.xsd",
-        'soap_server_url'       => "https://pvawp.bmi.gv.at/bmi.gv.at/soap/SZ2Services/services/SZR");
+        'soap_server_url'       => "https://pvawp.bmi.gv.at/at.gv.bmi.sz2-n-p/SZR");
     } else {
       return $settings;
     }
