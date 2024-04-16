@@ -105,4 +105,16 @@ class CRM_Bpk_Upgrader extends CRM_Extension_Upgrader_Base {
     $customData->syncCustomGroup(__DIR__ . '/../../resources/bpk_custom_group.json');
     return TRUE;
   }
+
+  /**
+   * Add error code F500
+   *
+   * @return true
+   * @throws \Exception
+   */
+  public function upgrade_0120() {
+    $customData = new CRM_Bpk_CustomData('de.systopia.bpk');
+    $customData->syncOptionGroup(__DIR__ . '/../../resources/bpk_error_code_option_group.json');
+    return TRUE;
+  }
 }
