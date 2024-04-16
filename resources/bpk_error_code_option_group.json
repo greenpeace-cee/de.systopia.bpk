@@ -250,6 +250,16 @@
     {
       "_lookup": ["value"],
       "_translate": ["label"],
+      "label": "[F500] Technische Fehler. Nach einiger Zeit erneut versuchen. Sollte die Meldung weiter bestehen, SZR-Support kontaktieren.",
+      "value": "F500",
+      "name": "F500",
+      "filter": "0",
+      "is_reserved": "0",
+      "is_active": "1"
+    },
+    {
+      "_lookup": ["value"],
+      "_translate": ["label"],
       "label": "[F501] Technische Fehler. Nach einiger Zeit erneut versuchen. Sollte die Meldung weiter bestehen, SZR-Support kontaktieren.",
       "value": "F501",
       "name": "F501",
