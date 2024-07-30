@@ -4,3 +4,4 @@ soapTester/example
 resources/certs
 certificate.pem
 pw.txt
+.phpunit.result.cache

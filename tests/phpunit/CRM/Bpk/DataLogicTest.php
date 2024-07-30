@@ -1,6 +1,5 @@
 <?php
 
-use CRM_Bpk_ExtensionUtil as E;
 use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
@@ -19,11 +18,11 @@ class CRM_Bpk_DataLogicTest extends \PHPUnit\Framework\TestCase implements Headl
       ->apply();
   }
 
-  public function setUp() {
+  public function setUp(): void {
     parent::setUp();
   }
 
-  public function tearDown() {
+  public function tearDown(): void {
     parent::tearDown();
   }
 
@@ -49,7 +48,7 @@ class CRM_Bpk_DataLogicTest extends \PHPUnit\Framework\TestCase implements Headl
       ]);
 
       $expected = [
-        `CRM_Bpk_CustomData::getCustomFieldKey('bpk', 'bpk_status') => BPK_STATUS_UNKNOWN,`
+        CRM_Bpk_CustomData::getCustomFieldKey('bpk', 'bpk_status') => BPK_STATUS_UNKNOWN,
         CRM_Bpk_CustomData::getCustomFieldKey('bpk', 'bpk_extern') => '',
         CRM_Bpk_CustomData::getCustomFieldKey('bpk', 'vbpk') => '',
         CRM_Bpk_CustomData::getCustomFieldKey('bpk', 'bpk_error_code') => '',

@@ -296,7 +296,6 @@ function _bpk_civix_civicrm_themes(&$themes) {
 function _bpk_civix_glob($pattern) {
   $result = glob($pattern);
   return is_array($result) ? $result : [];
->>>>>>> bd661bb (GP-22919 Regenerate civix file)
 }
 
 /**
