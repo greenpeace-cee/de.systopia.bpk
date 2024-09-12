@@ -34,7 +34,7 @@ function inject_bpk_data_dependency() {
 
 // inject update button
 cj(document).ready(function() {
-  cj("div.crm-custom-set-block-" + CRM.vars.bpk.bpk_group_id)
+  cj("div.crm-custom-set-block-" + CRM.vars.bpk.bpk_group_id + ", details.bpk summary")
     .prepend('<a href="' + CRM.vars.bpk.resolve_url + '" class="button" title="Resolve"><span><div class="icon refresh-icon ui-icon-refresh"></div></span></a>')
 
   // also, trigger data dependency function
