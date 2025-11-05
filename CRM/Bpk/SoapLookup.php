@@ -38,7 +38,7 @@ class CRM_Bpk_SoapLookup extends CRM_Bpk_Lookup {
    *
    * @param $params
    */
-  protected function __construct($params) {
+  public function __construct($params) {
     parent::__construct($params);
     $config = CRM_Bpk_Config::singleton();
     $soapHeaderParameters = $config->getSoapHeaderSettings();
