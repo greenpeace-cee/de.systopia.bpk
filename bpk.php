@@ -203,9 +203,7 @@ function bpk_civicrm_validateForm($formName, &$fields, &$files, &$form, &$errors
     || $formName === 'CRM_Contact_Form_Inline_Demographics'
   ) {
     $form_values = $form->exportValues();
-    $query_params = [];
-    parse_str(parse_url($form_values['entryURL'], PHP_URL_QUERY), $query_params);
-    $contact_id = $query_params['cid'];
+    $contact_id = $form->_contactId;
 
     $contact = Api4\Contact::get(FALSE)
       ->addSelect(
@@ -231,9 +229,28 @@ function bpk_civicrm_validateForm($formName, &$fields, &$files, &$form, &$errors
       'birth_date' => $form_values['birth_date'] ?? $contact['birth_date'],
     ]);
 
+    $error_field_name = $formName === 'CRM_Contact_Form_Inline_ContactName' ? 'last_name' : 'birth_date';
+    $error_bypass_text = ' To apply the changes anyway, please re-submit the form within the next 2 minutes. Only do this if you know what you\'re doing!';
+
     switch ($lookup_result['bpk_status']) {
       case CRM_Bpk_DataLogic::STATUS_NOMATCH: {
-        $errors['qfKey'] = 'Could not find a BPK match for the provided contact details.';
+        $error_message = 'Could not find a BPK match for the provided contact details.';
+
+        if (!CRM_Core_Permission::check('administer BPK')) {
+          $errors[$error_field_name] = $error_message;
+          break;
+        }
+
+        $is_repeated_attempt = CRM_Bpk_DataLogic::isRepeatedUpdateAttempt([
+          'form_name'   => $formName,
+          'current_bpk' => $contact['bpk.bpk_extern'],
+          'new_bpk'     => $lookup_result['bpk_extern'],
+        ], 120);
+
+        if ($is_repeated_attempt) break; // Skip display of warning, continue with update
+
+        $errors[$error_field_name] = $error_message . $error_bypass_text;
+
         break;
       }
 
@@ -243,30 +260,19 @@ function bpk_civicrm_validateForm($formName, &$fields, &$files, &$form, &$errors
         $error_message = 'The provided contact details match with a different BPK entity.';
 
         if (!CRM_Core_Permission::check('administer BPK')) {
-          $errors['qfKey'] = $error_message;
+          $errors[$error_field_name] = $error_message;
           break;
         }
 
-        $session = CRM_Core_Session::singleton();
-        $session_prefix = "de.systopia.bpk/$formName";
-        $bpk_change = $session->get('bpk_change', "de.systopia.bpk/$formName");
+        $is_repeated_attempt = CRM_Bpk_DataLogic::isRepeatedUpdateAttempt([
+          'form_name'   => $formName,
+          'current_bpk' => $contact['bpk.bpk_extern'],
+          'new_bpk'     => $lookup_result['bpk_extern'],
+        ], 120);
 
-        if (
-          is_null($bpk_change)
-          || $bpk_change['current'] !== $contact['bpk.bpk_extern']
-          || $bpk_change['new'] !== $lookup_result['bpk_extern']
-          || $bpk_change['timestamp'] < time() - 120 // Change is older than 2 minutes
-        ) {
-          $session->set('bpk_change', [
-            'current'   => $contact['bpk.bpk_extern'],
-            'new'       => $lookup_result['bpk_extern'],
-            'timestamp' => time(),
-          ], $session_prefix);
+        if ($is_repeated_attempt) break; // Skip display of warning, continue with update
 
-          $errors['qfKey'] = $error_message . ' To apply the changes anyway, please re-submit the form within the next 2 minutes. Only do this if you know what you\'re doing!';
-        } else {
-          $session->resetScope($session_prefix);
-        }
+        $errors[$error_field_name] = $error_message . $error_bypass_text;
 
         break;
       }
@@ -281,8 +287,8 @@ function bpk_civicrm_validateForm($formName, &$fields, &$files, &$form, &$errors
  */
 function bpk_civicrm_permission(&$permissions) {
   $permissions['administer BPK'] = [
-    'label'       => ts('BPK: Administer BPKs', [ 'domain' => 'de.systopia.bpk' ]),
-    'description' => ts('Allow administration of BPKs', [ 'domain' => 'de.systopia.bpk' ]),
+    'label'       => E::ts('BPK: Administer BPKs'),
+    'description' => E::ts('Allow administration of BPKs'),
     'implied_by'  => ['administer CiviCRM'],
   ];
 }

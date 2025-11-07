@@ -220,4 +220,45 @@ class CRM_Bpk_DataLogic {
     }
     return self::$bpk_group_id;
   }
+
+  /**
+   * Determine whether an identical BPK change has been attempted recently
+   * and if so, reset the associated session data
+   *
+   * This is used to bypass warnings about (possibly unintentional) BPK changes
+   * triggered by an update of a contact's first_name, last_name or birth_date
+   *
+   * @param array $params
+   *   - form_name   => (string) Name of the submitted form
+   *   - current_bpk => (string) The contact's current BPK
+   *   - new_bpk     => (string) The designated new BPK
+   * @param int $max_age_seconds The maximum age of the last attempt in seconds
+   *
+   * @return bool
+   */
+  public static function isRepeatedUpdateAttempt($params, $max_age_seconds) {
+    $session = CRM_Core_Session::singleton();
+    $session_prefix = 'de.systopia.bpk/' . $params['form_name'];
+    $bpk_change = $session->get('bpk_change', $session_prefix);
+
+    if (
+      isset($bpk_change)
+      && $bpk_change['current'] === $params['current_bpk']
+      && $bpk_change['new'] === $params['new_bpk']
+      && $bpk_change['timestamp'] >= time() - $max_age_seconds
+    ) {
+      // The same change has been attempted recently => reset the session data
+      $session->resetScope($session_prefix);
+      return TRUE;
+    }
+
+    // This change has NOT been attempted recently => store its data in the current session
+    $session->set('bpk_change', [
+      'current'   => $params['current_bpk'],
+      'new'       => $params['new_bpk'],
+      'timestamp' => time(),
+    ], $session_prefix);
+
+    return FALSE;
+  }
 }
