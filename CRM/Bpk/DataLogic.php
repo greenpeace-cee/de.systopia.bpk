@@ -14,6 +14,7 @@
 | written permission from the original author(s).        |
 +--------------------------------------------------------*/
 
+use Civi\Api4;
 
 define('BPK_STATUS_UNKNOWN',  1);
 define('BPK_STATUS_MANUAL',   2);
@@ -48,52 +49,63 @@ class CRM_Bpk_DataLogic {
    *  reset BPK
    */
   public static function processContactPreHook($op, $id, &$params) {
-    if (empty($id) || self::$scheduled_reset) {
-      return; // skip
+    if (empty($id)) return;
+    if (isset(self::$scheduled_reset)) return;
+    if (!in_array($op, ['create', 'edit'])) return;
+    if (!self::hasRelevantChanges($id, $params)) return;
+
+    // Relevant changes detected => reset BPKs
+    $reset = [
+      'id'                  => $id,
+      'bpk.bpk_error_code'  => '',
+      'bpk.bpk_error_note'  => '',
+      'bpk.bpk_extern'      => '',
+      'bpk.bpk_lookup_date' => NULL,
+      'bpk.bpk_status'      => BPK_STATUS_UNKNOWN,
+      'bpk.vbpk'            => '',
+    ];
+
+    CRM_Bpk_CustomData::resolveCustomFields($reset);
+
+    self::$scheduled_reset = $reset;
+  }
+
+  /**
+   * Detect whether a contact update contains BPK-relevant changes
+   *
+   * @param int $contact_id
+   * @param array $update
+   * @return bool
+   */
+  public static function hasRelevantChanges($contact_id, $update) {
+    $relevant_attributes = ['first_name', 'last_name', 'birth_date'];
+
+    // Reduce update to relevant entries
+    $update = array_filter(
+      $update,
+      fn ($value, $key) => in_array($key, $relevant_attributes) && isset($value),
+      ARRAY_FILTER_USE_BOTH
+    );
+
+    if (empty($update)) return FALSE;
+
+    // Load current contact data
+    $contact = Api4\Contact::get(FALSE)
+      ->addSelect('first_name', 'last_name', 'birth_date')
+      ->addWhere('id', '=', $contact_id)
+      ->execute()
+      ->first();
+
+    $contact['birth_date'] = date('Y-m-d', strtotime($contact['birth_date']));
+
+    // Check for differences
+    foreach ($update as $key => $new_value) {
+      $new_value = $key === 'birth_date' ? date('Y-m-d', strtotime($new_value)) : $new_value;
+
+      if ($new_value !== $contact[$key]) return TRUE;
     }
 
-    if ($op == 'edit' || $op == 'create') {
-      $potential_changes   = array();
-      $relevant_attributes = array('first_name', 'last_name', 'birth_date');
-      foreach ($relevant_attributes as $attribute) {
-        if (isset($params[$attribute])) {
-          $potential_changes[$attribute] = $params[$attribute];
-        }
-      }
-
-      if (!empty($potential_changes)) {
-        // some relevant fields have been submitted -> check if those are real changes
-        $actual_changes = array();
-        $contact_current = civicrm_api3('Contact', 'getsingle', array(
-          'id'     => $id,
-          'return' => implode(',', $relevant_attributes)));
-
-        foreach ($potential_changes as $key => $new_value) {
-          $old_value = $contact_current[$key];
-          if ($key == 'birth_date') { // format dates
-            $old_value = date('Y-m-d', strtotime($old_value));
-            $new_value = date('Y-m-d', strtotime($new_value));
-          }
-          if ($old_value != $new_value) {
-            $actual_changes[$key] = $new_value;
-          }
-        }
-
-        if (!empty($actual_changes)) {
-          // there is some actual change to the relevant attributes happening here
-          // ==> reset BPKs
-          $reset['bpk.bpk_status']     = BPK_STATUS_UNKNOWN;
-          $reset['id']                 = $id;
-          $reset['bpk.bpk_extern']     = '';
-          $reset['bpk.vbpk']           = '';
-          $reset['bpk.bpk_error_code'] = '';
-          $reset['bpk.bpk_error_note'] = '';
-          $reset['bpk.bpk_lookup_date'] = NULL;
-          CRM_Bpk_CustomData::resolveCustomFields($reset);
-          self::$scheduled_reset = $reset;
-        }
-      }
-    }
+    return FALSE;
   }
 
   /**
@@ -207,5 +219,46 @@ class CRM_Bpk_DataLogic {
       self::$bpk_group_id = civicrm_api3('CustomGroup', 'getvalue', array('name' => 'bpk', 'return' => 'id'));
     }
     return self::$bpk_group_id;
+  }
+
+  /**
+   * Determine whether an identical BPK change has been attempted recently
+   * and if so, reset the associated session data
+   *
+   * This is used to bypass warnings about (possibly unintentional) BPK changes
+   * triggered by an update of a contact's first_name, last_name or birth_date
+   *
+   * @param array $params
+   *   - form_name   => (string) Name of the submitted form
+   *   - current_bpk => (string) The contact's current BPK
+   *   - new_bpk     => (string) The designated new BPK
+   * @param int $max_age_seconds The maximum age of the last attempt in seconds
+   *
+   * @return bool
+   */
+  public static function isRepeatedUpdateAttempt($params, $max_age_seconds) {
+    $session = CRM_Core_Session::singleton();
+    $session_prefix = 'de.systopia.bpk/' . $params['form_name'];
+    $bpk_change = $session->get('bpk_change', $session_prefix);
+
+    if (
+      isset($bpk_change)
+      && $bpk_change['current'] === $params['current_bpk']
+      && $bpk_change['new'] === $params['new_bpk']
+      && $bpk_change['timestamp'] >= time() - $max_age_seconds
+    ) {
+      // The same change has been attempted recently => reset the session data
+      $session->resetScope($session_prefix);
+      return TRUE;
+    }
+
+    // This change has NOT been attempted recently => store its data in the current session
+    $session->set('bpk_change', [
+      'current'   => $params['current_bpk'],
+      'new'       => $params['new_bpk'],
+      'timestamp' => time(),
+    ], $session_prefix);
+
+    return FALSE;
   }
 }

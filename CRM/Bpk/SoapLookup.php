@@ -38,7 +38,7 @@ class CRM_Bpk_SoapLookup extends CRM_Bpk_Lookup {
    *
    * @param $params
    */
-  protected function __construct($params) {
+  public function __construct($params) {
     parent::__construct($params);
     $config = CRM_Bpk_Config::singleton();
     $soapHeaderParameters = $config->getSoapHeaderSettings();
@@ -241,7 +241,7 @@ class CRM_Bpk_SoapLookup extends CRM_Bpk_Lookup {
         $result["bpk_status"]     = 4; // "no_match"
 
       } elseif ($result_status == "F231") {
-        if (empty($contact->postal_code)) {
+        if (isset($contact->contact_id) && empty($contact->postal_code)) {
           // we performed a lookup without postal code and got ambiguous results
           // check if we have a postal code we can retry with to make result unique
           $address = \Civi\Api4\Address::get(FALSE)

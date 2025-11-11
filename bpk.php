@@ -15,6 +15,7 @@
 +--------------------------------------------------------*/
 
 require_once 'bpk.civix.php';
+use Civi\Api4;
 use CRM_Bpk_ExtensionUtil as E;
 
 
@@ -185,6 +186,111 @@ function bpk_civicrm_post($op, $objectName, $objectId, &$objectRef) {
   if ($objectName == 'Individual') {
     CRM_Bpk_DataLogic::sendPendingBPKRequests();
   }
+}
+
+/**
+ * Implements hook_civicrm_validateForm().
+ *
+ * @param string $formName
+ * @param array $fields
+ * @param array $files
+ * @param CRM_Core_Form $form
+ * @param array $errors
+ */
+function bpk_civicrm_validateForm($formName, &$fields, &$files, &$form, &$errors) {
+  if (
+    $formName === 'CRM_Contact_Form_Inline_ContactName'
+    || $formName === 'CRM_Contact_Form_Inline_Demographics'
+  ) {
+    $form_values = $form->exportValues();
+    $contact_id = $form->_contactId;
+
+    $contact = Api4\Contact::get(FALSE)
+      ->addSelect(
+        'first_name',
+        'last_name',
+        'birth_date',
+        'bpk.bpk_extern',
+        'bpk.bpk_status'
+      )
+      ->addWhere('id', '=', $contact_id)
+      ->execute()
+      ->first();
+
+    if ((int) $contact['bpk.bpk_status'] !== CRM_Bpk_DataLogic::STATUS_RESOLVED) return;
+    if (!CRM_Bpk_DataLogic::hasRelevantChanges($contact_id, $form_values)) return;
+
+    $lookup_client = new CRM_Bpk_SoapLookup([ 'contact_id' => $contact_id ]);
+
+    $lookup_result = $lookup_client->getBpkResult((object) [
+      'contact_id' => $contact_id,
+      'first_name' => $form_values['first_name'] ?? $contact['first_name'],
+      'last_name'  => $form_values['last_name'] ?? $contact['last_name'],
+      'birth_date' => $form_values['birth_date'] ?? $contact['birth_date'],
+    ]);
+
+    $error_field_name = $formName === 'CRM_Contact_Form_Inline_ContactName' ? 'last_name' : 'birth_date';
+    $error_bypass_text = ' To apply the changes anyway, please re-submit the form within the next 2 minutes. Only do this if you know what you\'re doing!';
+
+    switch ($lookup_result['bpk_status']) {
+      case CRM_Bpk_DataLogic::STATUS_NOMATCH: {
+        $error_message = 'Could not find a BPK match for the provided contact details.';
+
+        if (!CRM_Core_Permission::check('administer BPK')) {
+          $errors[$error_field_name] = $error_message;
+          break;
+        }
+
+        $is_repeated_attempt = CRM_Bpk_DataLogic::isRepeatedUpdateAttempt([
+          'form_name'   => $formName,
+          'current_bpk' => $contact['bpk.bpk_extern'],
+          'new_bpk'     => $lookup_result['bpk_extern'],
+        ], 120);
+
+        if ($is_repeated_attempt) break; // Skip display of warning, continue with update
+
+        $errors[$error_field_name] = $error_message . $error_bypass_text;
+
+        break;
+      }
+
+      case CRM_Bpk_DataLogic::STATUS_RESOLVED: {
+        if ($lookup_result['bpk_extern'] === $contact['bpk.bpk_extern']) break;
+
+        $error_message = 'The provided contact details match with a different BPK entity.';
+
+        if (!CRM_Core_Permission::check('administer BPK')) {
+          $errors[$error_field_name] = $error_message;
+          break;
+        }
+
+        $is_repeated_attempt = CRM_Bpk_DataLogic::isRepeatedUpdateAttempt([
+          'form_name'   => $formName,
+          'current_bpk' => $contact['bpk.bpk_extern'],
+          'new_bpk'     => $lookup_result['bpk_extern'],
+        ], 120);
+
+        if ($is_repeated_attempt) break; // Skip display of warning, continue with update
+
+        $errors[$error_field_name] = $error_message . $error_bypass_text;
+
+        break;
+      }
+    }
+  }
+}
+
+/**
+ * Add CiviContract permissions
+ *
+ * @param $permissions
+ */
+function bpk_civicrm_permission(&$permissions) {
+  $permissions['administer BPK'] = [
+    'label'       => E::ts('BPK: Administer BPKs'),
+    'description' => E::ts('Allow administration of BPKs'),
+    'implied_by'  => ['administer CiviCRM'],
+  ];
 }
 
 /**
