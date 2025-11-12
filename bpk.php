@@ -257,7 +257,7 @@ function bpk_civicrm_validateForm($formName, &$fields, &$files, &$form, &$errors
       case CRM_Bpk_DataLogic::STATUS_RESOLVED: {
         if ($lookup_result['bpk_extern'] === $contact['bpk.bpk_extern']) break;
 
-        $error_message = 'The provided contact details match with a different BPK entity.';
+        $error_message = "The provided contact details match with a different BPK entity ({$lookup_result['bpk_extern']}).";
 
         if (!CRM_Core_Permission::check('administer BPK')) {
           $errors[$error_field_name] = $error_message;
