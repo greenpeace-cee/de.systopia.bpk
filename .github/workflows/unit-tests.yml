@@ -73,6 +73,8 @@ jobs:
           PATH="/home/runner/buildkit/bin:$PATH"
           cd "$EXT_DIR"
           cp -R "$GITHUB_WORKSPACE/de.systopia.bpk" "$EXT_DIR/de.systopia.bpk"
+          git clone https://github.com/greenpeace-cee/de.systopia.xdedupe.git
+          cv en de.systopia.xdedupe
           cv en de.systopia.bpk
       - id: run-tests
         name: "Run Tests"
