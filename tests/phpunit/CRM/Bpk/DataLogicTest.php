@@ -14,6 +14,7 @@ class CRM_Bpk_DataLogicTest extends \PHPUnit\Framework\TestCase implements Headl
 
   public function setUpHeadless() {
     return \Civi\Test::headless()
+      ->install('de.systopia.xdedupe')
       ->installMe(__DIR__)
       ->apply();
   }
