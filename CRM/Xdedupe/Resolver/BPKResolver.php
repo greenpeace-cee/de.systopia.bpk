@@ -19,6 +19,10 @@ use Civi\API\Events;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
 use \Civi\Core\Event\GenericHookEvent;
 
+if (!class_exists('CRM_Xdedupe_Resolver')) {
+  return;
+}
+
 /**
  * Implements a resolver to resolve conflicts in the MoreGreetings fields
  */
